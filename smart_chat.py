@@ -54,10 +54,17 @@ SPECIES_MAP = {
 
 # 常见组织/关键词（中英文）
 TISSUE_KEYWORDS = {
+    # 组织类型
     'brain', 'liver', 'heart', 'kidney', 'lung', 'muscle', 'skin',
-    'seedling', 'root', 'leaf', 'flower', 'shoot', 'stem',
+    'seedling', 'root', 'leaf', 'flower', 'shoot', 'stem', 'seed',
     '大脑', '肝脏', '心脏', '肾脏', '肺', '肌肉', '皮肤',
-    '幼苗', '根', '叶', '花', '芽', '茎',
+    '幼苗', '根', '叶', '花', '芽', '茎', '种子',
+
+    # 处理条件/胁迫类型
+    'cold', 'heat', 'temperature', 'stress', 'drought', 'salt',
+    'osmotic', 'oxidative', 'light', 'dark', 'uv', 'pathogen',
+    'infection', 'hormone', 'auxin', 'cytokinin', 'abscisic',
+    '低温', '高温', '干旱', '盐', '胁迫', '光照', '黑暗',
 }
 
 # 实验类型关键词
@@ -403,6 +410,13 @@ class SmartChat:
         print(f"\n🎯 Found {len(self.current_recommendations)} matching experiments:")
         print("=" * 80)
 
+        # Check if all descriptions are generic
+        generic_descriptions = ['environmental stress', 'compound, organism part', 'comparing conditions']
+        all_generic = all(
+            any(generic in exp['description'].lower() for generic in generic_descriptions)
+            for exp in self.current_recommendations
+        )
+
         for i, exp in enumerate(self.current_recommendations, 1):
             print(f"\n  [{i}] {exp['accession']} (similarity: {exp['similarity_score']:.2%})")
             print(f"      Species: {exp['species']}")
@@ -411,6 +425,13 @@ class SmartChat:
             if len(exp['description']) > 80:
                 desc += "..."
             print(f"      Description: {desc}")
+            print(f"      🔗 Details: https://www.ebi.ac.uk/gxa/experiments/{exp['accession']}")
+
+        if all_generic:
+            print("\n" + "=" * 80)
+            print("⚠️  NOTE: The database descriptions are generic.")
+            print("    Please visit the experiment pages above to see detailed descriptions")
+            print("    and verify they match your specific needs (e.g., cold stress vs heat stress)")
 
         print("\n" + "=" * 80)
         print("💬 Which experiment would you like to explore?")
