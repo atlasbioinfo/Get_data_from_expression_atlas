@@ -117,10 +117,15 @@ class ExperimentVectorSearch:
             with open(cache_file, 'rb') as f:
                 cache_data = pickle.load(f)
                 self.embeddings = cache_data['embeddings']
-                print(f"Loaded {len(self.embeddings)} cached embeddings")
+                method = cache_data.get('method', 'sentence-transformers')
+                print(f"Loaded {len(self.embeddings)} cached embeddings (method: {method})")
 
-                # Initialize TF-IDF for query encoding (fallback)
-                self._init_tfidf_for_queries()
+                # Initialize the appropriate encoder for queries
+                if method == 'tfidf':
+                    self._init_tfidf_for_queries()
+                else:
+                    # Sentence transformers - need to load the model for query encoding
+                    self._init_model()
                 return
 
         # Initialize model
@@ -142,7 +147,8 @@ class ExperimentVectorSearch:
         with open(cache_file, 'wb') as f:
             pickle.dump({
                 'embeddings': self.embeddings,
-                'num_experiments': len(self.experiments)
+                'num_experiments': len(self.experiments),
+                'method': 'sentence-transformers'
             }, f)
         print(f"Cached embeddings to {cache_file}")
 
