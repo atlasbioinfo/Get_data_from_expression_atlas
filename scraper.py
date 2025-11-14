@@ -20,6 +20,13 @@ class ExpressionAtlasExperimentsScraper:
     Scraper to download and cache Expression Atlas experiment metadata.
     """
 
+    # Direct FTP URLs for experiment lists
+    FTP_BASE = "https://ftp.ebi.ac.uk/pub/databases/microarray/data/atlas/experiments/"
+    BASELINE_EXPS_URL = FTP_BASE + "baseline_exps"
+    DIFFERENTIAL_EXPS_URL = FTP_BASE + "differential_exps"
+    CONTRAST_DETAILS_URL = FTP_BASE + "contrastdetails.tsv"
+    EXPERIMENT_DESIGN_URL = FTP_BASE + "experiment_design_headers.tsv"
+
     def __init__(self, cache_dir: str = "./atlas_cache"):
         """
         Initialize the scraper.
@@ -33,6 +40,120 @@ class ExpressionAtlasExperimentsScraper:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (compatible; ExpressionAtlasBot/1.0)'
         })
+
+    def download_from_ftp(self, experiment_type: str = "baseline") -> pd.DataFrame:
+        """
+        Download experiment list directly from FTP.
+
+        Args:
+            experiment_type: 'baseline' or 'differential'
+
+        Returns:
+            DataFrame with experiment metadata
+        """
+        print(f"Downloading {experiment_type} experiments from FTP...")
+
+        # Choose the right URL
+        if experiment_type == "baseline":
+            url = self.BASELINE_EXPS_URL
+        else:
+            url = self.DIFFERENTIAL_EXPS_URL
+
+        try:
+            # Download the file
+            response = self.session.get(url, timeout=30)
+            if response.status_code != 200:
+                print(f"✗ Failed to download (HTTP {response.status_code})")
+                return self._get_manual_experiment_list(experiment_type)
+
+            # Parse the file - it's a simple text file with one experiment ID per line
+            lines = response.text.strip().split('\n')
+            experiment_ids = [line.strip() for line in lines if line.strip()]
+
+            print(f"✓ Downloaded {len(experiment_ids)} experiment IDs")
+
+            # Create basic entries with IDs
+            # We'll fetch metadata on-demand later to save time
+            experiments = [{
+                'accession': exp_id,
+                'type': experiment_type,
+                'species': '',
+                'description': '',
+                'last_update': '',
+                'factors': '',
+            } for exp_id in experiment_ids]
+
+            df = pd.DataFrame(experiments)
+            print(f"✓ Created list with {len(df)} experiments")
+            print("  (Metadata will be fetched when experiments are viewed)")
+            return df
+
+        except Exception as e:
+            print(f"✗ Error downloading from FTP: {e}")
+            return self._get_manual_experiment_list(experiment_type)
+
+    def _fetch_experiment_metadata(self, exp_id: str, exp_type: str) -> Optional[Dict]:
+        """
+        Fetch metadata for a single experiment from its config file.
+
+        Args:
+            exp_id: Experiment accession
+            exp_type: 'baseline' or 'differential'
+
+        Returns:
+            Dictionary with experiment metadata
+        """
+        # Try to get the configuration XML file
+        config_url = f"{self.FTP_BASE}{exp_id}/{exp_id}-configuration.xml"
+
+        try:
+            response = self.session.get(config_url, timeout=10)
+            if response.status_code == 200:
+                # Parse XML to extract metadata
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.content, 'xml')
+
+                # Extract basic info
+                species = ''
+                description = ''
+                factors = []
+
+                # Look for species
+                species_elem = soup.find('species')
+                if species_elem:
+                    species = species_elem.text.strip()
+
+                # Look for description
+                desc_elem = soup.find('experimentDescription')
+                if desc_elem:
+                    description = desc_elem.text.strip()
+
+                # Look for experimental factors
+                for factor in soup.find_all('experimentalFactor'):
+                    factor_type = factor.get('type', '')
+                    if factor_type:
+                        factors.append(factor_type)
+
+                return {
+                    'accession': exp_id,
+                    'type': exp_type,
+                    'species': species,
+                    'description': description,
+                    'last_update': '',
+                    'factors': ', '.join(factors),
+                }
+        except Exception:
+            pass
+
+        # If XML doesn't work, return basic info
+        return {
+            'accession': exp_id,
+            'type': exp_type,
+            'species': '',
+            'description': '',
+            'last_update': '',
+            'factors': '',
+        }
 
     def scrape_experiments_list(
         self,
@@ -211,6 +332,8 @@ class ExpressionAtlasExperimentsScraper:
         """
         Download experiments lists for both baseline and differential.
 
+        Uses FTP direct download (faster and more reliable).
+
         Returns:
             Dictionary with 'baseline' and 'differential' DataFrames
         """
@@ -221,7 +344,14 @@ class ExpressionAtlasExperimentsScraper:
             print(f"Downloading {exp_type.upper()} experiments")
             print('='*70)
 
-            df = self.scrape_experiments_list(exp_type)
+            # Try FTP download first (preferred method)
+            df = self.download_from_ftp(exp_type)
+
+            # If FTP fails, fall back to manual list
+            if df.empty:
+                print("Falling back to manual experiment list...")
+                df = self._get_manual_experiment_list(exp_type)
+
             results[exp_type] = df
 
             # Save to cache
