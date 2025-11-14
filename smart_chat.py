@@ -147,12 +147,12 @@ class SmartChatParser:
         """Initialize vector search system."""
         try:
             self.vector_search = ExperimentVectorSearch()
-            print("🔍 正在初始化实验数据库...")
+            print("🔍 Initializing experiment database...")
             self.vector_search.build_index()
-            print(f"✅ 已加载 {len(self.vector_search.experiments)} 个实验")
+            print(f"✅ Loaded {len(self.vector_search.experiments)} experiments")
         except Exception as e:
-            print(f"⚠ Vector search初始化失败: {e}")
-            print("  使用fallback推荐系统")
+            print(f"⚠ Vector search initialization failed: {e}")
+            print("  Using fallback recommendation system")
             self.vector_search = None
 
     def recommend_experiment(self, parsed: Dict) -> Optional[str]:
@@ -173,7 +173,7 @@ class SmartChatParser:
                 if results:
                     return results[0]['accession']
             except Exception as e:
-                print(f"⚠ Vector search失败: {e}")
+                print(f"⚠ Vector search failed: {e}")
 
         # Fallback to hardcoded experiments
         if species and species in KNOWN_EXPERIMENTS:
@@ -203,7 +203,7 @@ class SmartChatParser:
                 )
                 return results
             except Exception as e:
-                print(f"⚠ Vector search失败: {e}")
+                print(f"⚠ Vector search failed: {e}")
 
         return []
 
@@ -332,21 +332,21 @@ class SmartChat:
     def process_query(self, user_input: str):
         """处理用户查询"""
         print("\n" + "=" * 80)
-        print(f"💬 你的请求: {user_input}")
+        print(f"💬 Your request: {user_input}")
         print("=" * 80)
 
         # 解析输入
         parsed = self.parser.parse_user_input(user_input)
 
-        print("\n🔍 理解你的需求:")
+        print("\n🔍 Understanding your needs:")
         if parsed['species']:
-            print(f"  • 物种: {parsed['species']}")
+            print(f"  • Species: {parsed['species']}")
         if parsed['keywords']:
-            print(f"  • 关键词: {', '.join(parsed['keywords'])}")
+            print(f"  • Keywords: {', '.join(parsed['keywords'])}")
         if parsed['experiment_type']:
-            print(f"  • 实验类型: {parsed['experiment_type']}")
+            print(f"  • Experiment type: {parsed['experiment_type']}")
         if parsed['experiment_id']:
-            print(f"  • 实验ID: {parsed['experiment_id']}")
+            print(f"  • Experiment ID: {parsed['experiment_id']}")
 
         # 确定实验ID
         experiment_id = parsed.get('experiment_id')
@@ -355,49 +355,49 @@ class SmartChat:
             top_experiments = self.parser.get_top_experiments(parsed, top_k=3)
 
             if top_experiments:
-                print(f"\n🎯 找到 {len(top_experiments)} 个匹配的实验:")
+                print(f"\n🎯 Found {len(top_experiments)} matching experiments:")
                 print("=" * 80)
                 for exp in top_experiments:
-                    print(f"\n  {exp['rank']}. {exp['accession']} (匹配度: {exp['similarity_score']:.2%})")
-                    print(f"     物种: {exp['species']}")
+                    print(f"\n  {exp['rank']}. {exp['accession']} (similarity: {exp['similarity_score']:.2%})")
+                    print(f"     Species: {exp['species']}")
                     desc = exp['description'][:100]
                     if len(exp['description']) > 100:
                         desc += "..."
-                    print(f"     描述: {desc}")
+                    print(f"     Description: {desc}")
 
                 print("\n" + "=" * 80)
 
                 # 默认使用第一个（最佳匹配）
                 experiment_id = top_experiments[0]['accession']
-                print(f"\n✨ 自动选择最佳匹配: {experiment_id}")
-                print(f"   (如需其他实验，请重新运行并指定实验ID)")
+                print(f"\n✨ Auto-selected best match: {experiment_id}")
+                print(f"   (For other experiments, please re-run with specific experiment ID)")
             else:
                 # Fallback to single recommendation
                 experiment_id = self.parser.recommend_experiment(parsed)
                 if experiment_id:
-                    print(f"\n✨ 推荐实验: {experiment_id}")
+                    print(f"\n✨ Recommended experiment: {experiment_id}")
 
         if not experiment_id:
-            print("\n❌ 抱歉，无法找到合适的实验")
-            print("请提供更多信息或访问: https://www.ebi.ac.uk/gxa/experiments")
+            print("\n❌ Sorry, couldn't find a suitable experiment")
+            print("Please provide more information or visit: https://www.ebi.ac.uk/gxa/experiments")
             return
 
         # 获取实验信息
-        print(f"\n📊 实验详情:")
-        print(f"  实验ID: {experiment_id}")
-        print(f"  实验页面: https://www.ebi.ac.uk/gxa/experiments/{experiment_id}")
+        print(f"\n📊 Experiment details:")
+        print(f"  Experiment ID: {experiment_id}")
+        print(f"  Experiment page: https://www.ebi.ac.uk/gxa/experiments/{experiment_id}")
 
         # 浏览FTP目录
-        print(f"\n🔎 正在浏览FTP目录...")
+        print(f"\n🔎 Browsing FTP directory...")
         ftp_result = self.browse_ftp_directory(experiment_id)
 
         if ftp_result.get('success'):
             files = ftp_result.get('files', [])
-            print(f"  ✓ 找到 {len(files)} 个文件")
+            print(f"  ✓ Found {len(files)} files")
             print(f"  FTP URL: {ftp_result['ftp_url']}")
 
             # 识别表达数据文件
-            print(f"\n🧠 智能识别基因表达数据文件...")
+            print(f"\n🧠 Intelligently identifying gene expression data files...")
             identified = self.identify_expression_files(files)
 
             categorized = identified.get('categorized', {})
@@ -408,7 +408,7 @@ class SmartChat:
                 file_list = categorized.get(category, [])
                 if file_list:
                     found_expr_files = True
-                    print(f"\n  {category.upper()} 文件:")
+                    print(f"\n  {category.upper()} files:")
                     for f in file_list:
                         if isinstance(f, dict):
                             print(f"    • {f.get('name')} ({f.get('size')} bytes)")
@@ -419,26 +419,26 @@ class SmartChat:
             recommended = identified.get('recommended')
             if recommended:
                 print("\n" + "=" * 80)
-                print("🎯 推荐下载:")
+                print("🎯 Recommended download:")
                 print("=" * 80)
 
                 if isinstance(recommended, dict):
                     rec_name = recommended.get('name')
                     rec_url = recommended.get('url')
                     rec_size = recommended.get('size')
-                    print(f"  文件: {rec_name}")
-                    print(f"  大小: {rec_size} bytes")
+                    print(f"  File: {rec_name}")
+                    print(f"  Size: {rec_size} bytes")
                     print(f"  URL: {rec_url}")
                 else:
-                    print(f"  文件: {recommended}")
+                    print(f"  File: {recommended}")
                     print(f"  URL: {ftp_result['ftp_url']}{recommended}")
 
                 # 询问是否下载
                 print("\n" + "=" * 80)
-                response = input("是否要下载这个文件? (yes/no): ").strip().lower()
+                response = input("Download this file? (yes/no): ").strip().lower()
 
-                if response in ['yes', 'y', '是', 'YES']:
-                    print("\n📥 开始下载...")
+                if response in ['yes', 'y', 'YES']:
+                    print("\n📥 Starting download...")
                     output_dir = './expression_atlas_data'
 
                     downloaded = self.api.download_experiment_data(
@@ -447,48 +447,48 @@ class SmartChat:
                     )
 
                     if downloaded:
-                        print(f"\n✅ 下载成功!")
-                        print(f"  保存位置: {output_dir}")
+                        print(f"\n✅ Download successful!")
+                        print(f"  Saved to: {output_dir}")
                         for file_type, path in downloaded.items():
                             print(f"    • {file_type}: {path}")
 
                         # 提供后续分析建议
                         self._show_analysis_guide(downloaded, parsed.get('keywords', []))
                     else:
-                        print("\n⚠ 自动下载失败")
+                        print("\n⚠ Automatic download failed")
                         self._show_manual_download_guide(experiment_id, ftp_result)
                 else:
-                    print("\n跳过下载")
+                    print("\nSkipping download")
                     self._show_manual_download_guide(experiment_id, ftp_result)
 
             elif found_expr_files:
-                print("\n找到了表达数据文件，但无法自动确定最佳选择")
+                print("\nFound expression data files, but cannot automatically determine the best choice")
                 self._show_manual_download_guide(experiment_id, ftp_result)
             else:
-                print("\n未找到标准的基因表达数据文件")
+                print("\nNo standard gene expression data files found")
                 self._show_manual_download_guide(experiment_id, ftp_result)
 
         else:
-            print(f"  ✗ 无法自动浏览FTP: {ftp_result.get('message')}")
+            print(f"  ✗ Cannot automatically browse FTP: {ftp_result.get('message')}")
             self._show_manual_download_guide(experiment_id, ftp_result)
 
     def _show_manual_download_guide(self, experiment_id: str, ftp_result: dict):
         """显示手动下载指南"""
         print("\n" + "=" * 80)
-        print("📖 手动下载指南")
+        print("📖 Manual Download Guide")
         print("=" * 80)
-        print(f"\n1. 访问实验页面:")
+        print(f"\n1. Visit the experiment page:")
         print(f"   {ftp_result.get('experiment_page', f'https://www.ebi.ac.uk/gxa/experiments/{experiment_id}')}")
-        print(f"\n2. 点击 'Downloads' 标签")
-        print(f"\n3. 下载你需要的文件:")
-        print(f"   • TPM (Transcripts Per Million) - 推荐")
+        print(f"\n2. Click the 'Downloads' tab")
+        print(f"\n3. Download the files you need:")
+        print(f"   • TPM (Transcripts Per Million) - recommended")
         print(f"   • FPKM (Fragments Per Kilobase Million)")
         print(f"   • Raw counts")
 
     def _show_analysis_guide(self, downloaded_files: dict, keywords: List[str]):
         """显示数据分析指南"""
         print("\n" + "=" * 80)
-        print("📊 下一步：数据分析")
+        print("📊 Next step: Data Analysis")
         print("=" * 80)
 
         # 找到主要的表达数据文件
@@ -503,17 +503,17 @@ class SmartChat:
             print(f"from expression_atlas import ExpressionAtlasAPI")
             print(f"import pandas as pd")
             print(f"")
-            print(f"# 加载数据")
+            print(f"# Load data")
             print(f"api = ExpressionAtlasAPI()")
             print(f"df = api.load_expression_data('{expr_file}')")
             print(f"")
-            print(f"# 查看数据")
+            print(f"# View data")
             print(f"print(df.head())")
-            print(f"print(f'数据维度: {{df.shape}}')")
+            print(f"print(f'Data shape: {{df.shape}}')")
 
             if keywords:
                 print(f"")
-                print(f"# 筛选 {keywords[0]} 相关数据")
+                print(f"# Filter {keywords[0]} related data")
                 print(f"keyword_cols = [col for col in df.columns if '{keywords[0]}' in col.lower()]")
                 print(f"if keyword_cols:")
                 print(f"    keyword_data = df[keyword_cols]")
@@ -524,25 +524,25 @@ class SmartChat:
     def start(self):
         """启动智能对话"""
         print("=" * 80)
-        print("🤖 Expression Atlas 智能助手")
+        print("🤖 Expression Atlas Smart Assistant")
         print("=" * 80)
-        print("\n直接告诉我你需要什么数据，我会帮你找到并下载！")
-        print("\n示例:")
-        print("  • 我需要拟南芥seedling的数据")
-        print("  • 我想要人类大脑的基因表达数据")
-        print("  • 帮我下载实验 E-MTAB-513 的数据")
-        print("  • 小鼠肝脏表达数据")
-        print("\n输入 'quit' 或 'exit' 退出\n")
+        print("\nTell me what data you need, and I'll help you find and download it!")
+        print("\nExamples:")
+        print("  • I need Arabidopsis seedling data")
+        print("  • I want human brain gene expression data")
+        print("  • Help me download experiment E-MTAB-513")
+        print("  • Mouse liver expression data")
+        print("\nType 'quit' or 'exit' to exit\n")
 
         while True:
             try:
-                user_input = input("💬 你: ").strip()
+                user_input = input("💬 You: ").strip()
 
                 if not user_input:
                     continue
 
-                if user_input.lower() in ['quit', 'exit', '退出', 'bye']:
-                    print("\n再见! 👋")
+                if user_input.lower() in ['quit', 'exit', 'bye']:
+                    print("\nGoodbye! 👋")
                     break
 
                 self.process_query(user_input)
@@ -550,11 +550,11 @@ class SmartChat:
                 print("\n" + "=" * 80)
 
             except KeyboardInterrupt:
-                print("\n\n再见! 👋")
+                print("\n\nGoodbye! 👋")
                 break
             except Exception as e:
-                print(f"\n❌ 出错了: {e}")
-                print("请重试或换一种表达方式")
+                print(f"\n❌ Error occurred: {e}")
+                print("Please try again or rephrase your request")
 
 
 def main():
