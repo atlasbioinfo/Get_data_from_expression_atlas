@@ -19,6 +19,7 @@ pip install -r requirements.txt
 ## Features
 
 - 🤖 **MCP Server** - Direct integration with Claude and other AI assistants
+- 🌟 **Smart Chat** - Natural language interface (supports Chinese & English) - NEW!
 - 🔍 Interactive conversation-based interface to specify data requirements
 - 🧬 Support for both baseline and differential expression experiments
 - 🌍 Filter by species/organism
@@ -62,7 +63,28 @@ Use with Claude Desktop or any MCP-compatible client:
 
 ## Quick Start (CLI/Python)
 
-### 💻 Method 2: Interactive Chat Interface
+### 🌟 Method 2: Smart Chat (Recommended for CLI)
+
+**Get data with one sentence!** Just like talking to an AI:
+
+```bash
+python smart_chat.py
+```
+
+**Then type what you need in natural language (Chinese or English):**
+- "我需要拟南芥seedling的数据"
+- "I need human brain expression data"
+- "小鼠肝脏表达数据"
+- "Download experiment E-MTAB-513"
+
+**The tool automatically:**
+1. ✅ Understands your request (supports 中文 & English)
+2. ✅ Identifies species, keywords, experiment type
+3. ✅ Recommends the best experiment
+4. ✅ Browses FTP for available files
+5. ✅ Helps you download data
+
+### 💻 Method 3: Step-by-step Chat Interface
 
 ```bash
 python chat_interface.py
@@ -73,7 +95,7 @@ The tool will guide you through:
 2. Or searching by species, experiment type, and keywords
 3. Getting direct links to download data from Expression Atlas
 
-### 🐍 Method 3: Programmatic Access
+### 🐍 Method 4: Programmatic Access
 
 ```python
 from chat_interface import ExpressionAtlasChat
@@ -83,7 +105,7 @@ chat = ExpressionAtlasChat()
 chat.start()
 ```
 
-### 📁 Method 4: Direct Data Loading (if you have downloaded files)
+### 📁 Method 5: Direct Data Loading (if you have downloaded files)
 
 ```python
 from expression_atlas import ExpressionAtlasAPI
@@ -143,8 +165,9 @@ Compares gene expression between different:
 ```
 .
 ├── mcp_server.py             # 🤖 MCP server for AI assistants
+├── smart_chat.py             # 🌟 Smart chat - natural language interface (NEW!)
 ├── expression_atlas.py       # Main module for data retrieval
-├── chat_interface.py         # Conversational CLI interface
+├── chat_interface.py         # Step-by-step CLI interface
 ├── requirements.txt          # Dependencies (includes mcp)
 ├── MCP_SETUP.md             # MCP server setup guide
 ├── mcp_config_example.json  # Example MCP configuration
