@@ -41,6 +41,125 @@ class ExpressionAtlasExperimentsScraper:
             'User-Agent': 'Mozilla/5.0 (compatible; ExpressionAtlasBot/1.0)'
         })
 
+    def parse_local_tsv_files(
+        self,
+        assaygroups_file: str = "TEMP/assaygroupsdetails.tsv",
+        contrast_file: str = "TEMP/contrastdetails.tsv"
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Parse local TSV files containing experiment metadata.
+
+        Args:
+            assaygroups_file: Path to assaygroupsdetails.tsv (baseline experiments)
+            contrast_file: Path to contrastdetails.tsv (differential experiments)
+
+        Returns:
+            Dictionary with 'baseline' and 'differential' DataFrames
+        """
+        results = {}
+
+        # Parse baseline experiments from assaygroupsdetails.tsv
+        print("Parsing baseline experiments from assaygroupsdetails.tsv...")
+        if Path(assaygroups_file).exists():
+            baseline_exps = {}
+
+            with open(assaygroups_file, 'r', encoding='utf-8', errors='replace') as f:
+                for line in f:
+                    parts = line.strip().split('\t')
+                    if len(parts) >= 5:
+                        exp_id = parts[0]
+                        attr_type = parts[2]  # characteristic or factor
+                        attr_name = parts[3]  # e.g., "organism", "organism part"
+                        attr_value = parts[4]
+
+                        if exp_id not in baseline_exps:
+                            baseline_exps[exp_id] = {
+                                'accession': exp_id,
+                                'type': 'baseline',
+                                'species': '',
+                                'organism_parts': set(),
+                                'developmental_stages': set(),
+                                'factors': set()
+                            }
+
+                        if attr_name == 'organism':
+                            baseline_exps[exp_id]['species'] = attr_value
+                        elif attr_name == 'organism part':
+                            baseline_exps[exp_id]['organism_parts'].add(attr_value)
+                        elif attr_name == 'developmental stage':
+                            baseline_exps[exp_id]['developmental_stages'].add(attr_value)
+                        elif attr_type == 'factor':
+                            baseline_exps[exp_id]['factors'].add(f"{attr_name}: {attr_value}")
+
+            # Convert to DataFrame
+            baseline_list = []
+            for exp_id, data in baseline_exps.items():
+                baseline_list.append({
+                    'accession': data['accession'],
+                    'type': 'baseline',
+                    'species': data['species'],
+                    'description': f"Baseline expression across {', '.join(list(data['organism_parts'])[:3]) if data['organism_parts'] else 'various conditions'}",
+                    'last_update': '',
+                    'factors': ', '.join(data['factors']) if data['factors'] else ''
+                })
+
+            results['baseline'] = pd.DataFrame(baseline_list)
+            print(f"✓ Parsed {len(results['baseline'])} baseline experiments")
+        else:
+            print(f"⚠ File not found: {assaygroups_file}")
+            results['baseline'] = pd.DataFrame()
+
+        # Parse differential experiments from contrastdetails.tsv
+        print("\nParsing differential experiments from contrastdetails.tsv...")
+        if Path(contrast_file).exists():
+            diff_exps = {}
+
+            with open(contrast_file, 'r', encoding='utf-8', errors='replace') as f:
+                for line in f:
+                    parts = line.strip().split('\t')
+                    if len(parts) >= 7:
+                        exp_id = parts[0]
+                        contrast_id = parts[1]
+                        ref_or_test = parts[2]  # reference or test
+                        attr_type = parts[3]    # characteristic or factor
+                        attr_name = parts[4]    # e.g., "organism"
+                        attr_value = parts[5]
+
+                        if exp_id not in diff_exps:
+                            diff_exps[exp_id] = {
+                                'accession': exp_id,
+                                'type': 'differential',
+                                'species': '',
+                                'contrasts': set(),
+                                'factors': set()
+                            }
+
+                        if attr_name == 'organism':
+                            diff_exps[exp_id]['species'] = attr_value
+                        elif attr_type == 'factor':
+                            diff_exps[exp_id]['factors'].add(attr_name)
+                            diff_exps[exp_id]['contrasts'].add(f"{attr_name}: {attr_value}")
+
+            # Convert to DataFrame
+            diff_list = []
+            for exp_id, data in diff_exps.items():
+                diff_list.append({
+                    'accession': data['accession'],
+                    'type': 'differential',
+                    'species': data['species'],
+                    'description': f"Differential expression comparing {', '.join(list(data['factors'])[:3]) if data['factors'] else 'conditions'}",
+                    'last_update': '',
+                    'factors': ', '.join(data['factors']) if data['factors'] else ''
+                })
+
+            results['differential'] = pd.DataFrame(diff_list)
+            print(f"✓ Parsed {len(results['differential'])} differential experiments")
+        else:
+            print(f"⚠ File not found: {contrast_file}")
+            results['differential'] = pd.DataFrame()
+
+        return results
+
     def download_from_ftp(self, experiment_type: str = "baseline") -> pd.DataFrame:
         """
         Download experiment list directly from FTP.
@@ -332,37 +451,60 @@ class ExpressionAtlasExperimentsScraper:
         """
         Download experiments lists for both baseline and differential.
 
-        Uses FTP direct download (faster and more reliable).
+        Priority order:
+        1. Parse local TSV files (TEMP/assaygroupsdetails.tsv, TEMP/contrastdetails.tsv)
+        2. Try FTP download
+        3. Fall back to manual experiment list
 
         Returns:
             Dictionary with 'baseline' and 'differential' DataFrames
         """
         results = {}
 
-        for exp_type in ['baseline', 'differential']:
-            print(f"\n{'='*70}")
-            print(f"Downloading {exp_type.upper()} experiments")
-            print('='*70)
+        # First, try to parse local TSV files
+        print("\n" + "="*70)
+        print("Checking for local TSV files...")
+        print("="*70)
 
-            # Try FTP download first (preferred method)
-            df = self.download_from_ftp(exp_type)
+        local_results = self.parse_local_tsv_files()
 
-            # If FTP fails, fall back to manual list
-            if df.empty:
-                print("Falling back to manual experiment list...")
-                df = self._get_manual_experiment_list(exp_type)
+        # Check if we got valid data from local files
+        has_baseline = 'baseline' in local_results and not local_results['baseline'].empty
+        has_differential = 'differential' in local_results and not local_results['differential'].empty
 
-            results[exp_type] = df
+        if has_baseline and has_differential:
+            print("\n✓ Successfully loaded experiments from local TSV files")
+            results = local_results
+        else:
+            # Fall back to FTP or manual list
+            print("\n⚠ Local TSV files not found or incomplete")
+            print("Trying FTP download...\n")
 
-            # Save to cache
+            for exp_type in ['baseline', 'differential']:
+                print(f"\n{'='*70}")
+                print(f"Downloading {exp_type.upper()} experiments")
+                print('='*70)
+
+                # Try FTP download
+                df = self.download_from_ftp(exp_type)
+
+                # If FTP fails, fall back to manual list
+                if df.empty:
+                    print("Falling back to manual experiment list...")
+                    df = self._get_manual_experiment_list(exp_type)
+
+                results[exp_type] = df
+
+        # Save to cache regardless of source
+        for exp_type, df in results.items():
             cache_file = self.cache_dir / f"{exp_type}_experiments.csv"
             df.to_csv(cache_file, index=False)
-            print(f"✓ Saved to {cache_file}")
+            print(f"✓ Saved {exp_type} to {cache_file}")
 
             # Also save as JSON for easier loading
             json_file = self.cache_dir / f"{exp_type}_experiments.json"
             df.to_json(json_file, orient='records', indent=2)
-            print(f"✓ Saved to {json_file}")
+            print(f"✓ Saved {exp_type} to {json_file}")
 
         return results
 
@@ -434,9 +576,10 @@ class ExpressionAtlasExperimentsScraper:
 
         if keywords:
             # Search in description and factors
+            # Convert to string to handle any non-string values
             mask = (
-                df['description'].str.contains(keywords, case=False, na=False) |
-                df['factors'].str.contains(keywords, case=False, na=False)
+                df['description'].astype(str).str.contains(keywords, case=False, na=False) |
+                df['factors'].astype(str).str.contains(keywords, case=False, na=False)
             )
             df = df[mask]
 
