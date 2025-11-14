@@ -140,7 +140,7 @@ Format your response as JSON with two fields:
         try:
             # Call Claude API
             response = self.claude.messages.create(
-                model="claude-3-5-sonnet-20240620",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=1024,
                 system=system_prompt,
                 messages=messages
