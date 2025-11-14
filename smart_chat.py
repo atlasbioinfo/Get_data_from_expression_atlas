@@ -112,8 +112,9 @@ class SmartChatParser:
             'intent': 'search',  # 默认是搜索
         }
 
-        # 1. 检测实验ID
-        exp_id_match = re.search(r'E-(MTAB|GEOD|MEXP|TABM)-\d+', user_input, re.IGNORECASE)
+        # 1. 检测实验ID (支持所有Expression Atlas实验ID格式)
+        # 常见格式: E-MTAB, E-GEOD, E-MEXP, E-TABM, E-CURD, E-PROT等
+        exp_id_match = re.search(r'E-[A-Z]+-\d+', user_input, re.IGNORECASE)
         if exp_id_match:
             result['experiment_id'] = exp_id_match.group(0).upper()
             result['intent'] = 'download'
@@ -209,11 +210,19 @@ class SmartChatParser:
 
 
 class SmartChat:
-    """智能对话界面"""
+    """智能对话界面 - Multi-turn conversation"""
 
     def __init__(self):
         self.parser = SmartChatParser()
         self.api = ExpressionAtlasAPI()
+
+        # Conversation state
+        self.state = 'INITIAL'  # INITIAL, SELECTING, CONFIRMING
+        self.current_query = None
+        self.current_recommendations = []
+        self.selected_experiment = None
+        self.ftp_result = None
+        self.identified_files = None
 
     def browse_ftp_directory(self, experiment_id: str) -> dict:
         """浏览FTP目录（从mcp_server.py复制）"""
@@ -330,13 +339,26 @@ class SmartChat:
         }
 
     def process_query(self, user_input: str):
-        """处理用户查询"""
+        """处理用户查询 - Multi-turn conversation"""
+
+        # Handle conversation states
+        if self.state == 'SELECTING':
+            # User is selecting from recommendations
+            self._handle_selection(user_input)
+            return
+        elif self.state == 'CONFIRMING':
+            # User is confirming download
+            self._handle_download_confirmation(user_input)
+            return
+
+        # INITIAL state: Process new query
         print("\n" + "=" * 80)
         print(f"💬 Your request: {user_input}")
         print("=" * 80)
 
         # 解析输入
         parsed = self.parser.parse_user_input(user_input)
+        self.current_query = parsed
 
         print("\n🔍 Understanding your needs:")
         if parsed['species']:
@@ -350,36 +372,90 @@ class SmartChat:
 
         # 确定实验ID
         experiment_id = parsed.get('experiment_id')
-        if not experiment_id:
-            # 获取top-3匹配的实验
-            top_experiments = self.parser.get_top_experiments(parsed, top_k=3)
+        if experiment_id:
+            # User specified experiment ID directly, skip to showing details
+            self.selected_experiment = experiment_id
+            self._show_experiment_details()
+            return
 
-            if top_experiments:
-                print(f"\n🎯 Found {len(top_experiments)} matching experiments:")
-                print("=" * 80)
-                for exp in top_experiments:
-                    print(f"\n  {exp['rank']}. {exp['accession']} (similarity: {exp['similarity_score']:.2%})")
-                    print(f"     Species: {exp['species']}")
-                    desc = exp['description'][:100]
-                    if len(exp['description']) > 100:
-                        desc += "..."
-                    print(f"     Description: {desc}")
+        # Get top-3 matching experiments
+        top_experiments = self.parser.get_top_experiments(parsed, top_k=3)
 
-                print("\n" + "=" * 80)
-
-                # 默认使用第一个（最佳匹配）
-                experiment_id = top_experiments[0]['accession']
-                print(f"\n✨ Auto-selected best match: {experiment_id}")
-                print(f"   (For other experiments, please re-run with specific experiment ID)")
+        if not top_experiments:
+            # Fallback to single recommendation
+            experiment_id = self.parser.recommend_experiment(parsed)
+            if experiment_id:
+                self.selected_experiment = experiment_id
+                print(f"\n✨ Recommended experiment: {experiment_id}")
+                self._show_experiment_details()
             else:
-                # Fallback to single recommendation
-                experiment_id = self.parser.recommend_experiment(parsed)
-                if experiment_id:
-                    print(f"\n✨ Recommended experiment: {experiment_id}")
+                print("\n❌ Sorry, couldn't find a suitable experiment")
+                print("Please provide more information or visit: https://www.ebi.ac.uk/gxa/experiments")
+            return
+
+        # Show recommendations and wait for user selection
+        self.current_recommendations = top_experiments
+        self._show_recommendations()
+        self.state = 'SELECTING'
+
+    def _show_recommendations(self):
+        """Show top recommendations and ask user to select"""
+        print(f"\n🎯 Found {len(self.current_recommendations)} matching experiments:")
+        print("=" * 80)
+
+        for i, exp in enumerate(self.current_recommendations, 1):
+            print(f"\n  [{i}] {exp['accession']} (similarity: {exp['similarity_score']:.2%})")
+            print(f"      Species: {exp['species']}")
+            print(f"      Type: {exp['type']}")
+            desc = exp['description'][:80]
+            if len(exp['description']) > 80:
+                desc += "..."
+            print(f"      Description: {desc}")
+
+        print("\n" + "=" * 80)
+        print("💬 Which experiment would you like to explore?")
+        print("   Type 1, 2, or 3 to select")
+        print("   Type 'back' or 'new' to start a new search")
+
+    def _handle_selection(self, user_input: str):
+        """Handle user's experiment selection"""
+        user_input = user_input.strip().lower()
+
+        # Check for back/new commands
+        if user_input in ['back', 'new', 'cancel']:
+            print("\n🔄 Starting new search...")
+            self._reset_state()
+            return
+
+        # Try to parse as number
+        try:
+            choice = int(user_input)
+            if 1 <= choice <= len(self.current_recommendations):
+                selected = self.current_recommendations[choice - 1]
+                self.selected_experiment = selected['accession']
+                print(f"\n✅ You selected: {self.selected_experiment}")
+                self._show_experiment_details()
+            else:
+                print(f"\n❌ Invalid choice. Please type 1-{len(self.current_recommendations)}")
+        except ValueError:
+            print("\n❌ Please type a number (1, 2, or 3), or 'back' to start over")
+
+    def _reset_state(self):
+        """Reset conversation state"""
+        self.state = 'INITIAL'
+        self.current_query = None
+        self.current_recommendations = []
+        self.selected_experiment = None
+        self.ftp_result = None
+        self.identified_files = None
+
+    def _show_experiment_details(self):
+        """Show experiment details and ask for download confirmation"""
+        experiment_id = self.selected_experiment
 
         if not experiment_id:
-            print("\n❌ Sorry, couldn't find a suitable experiment")
-            print("Please provide more information or visit: https://www.ebi.ac.uk/gxa/experiments")
+            print("\n❌ No experiment selected")
+            self._reset_state()
             return
 
         # 获取实验信息
@@ -390,6 +466,7 @@ class SmartChat:
         # 浏览FTP目录
         print(f"\n🔎 Browsing FTP directory...")
         ftp_result = self.browse_ftp_directory(experiment_id)
+        self.ftp_result = ftp_result
 
         if ftp_result.get('success'):
             files = ftp_result.get('files', [])
@@ -417,6 +494,8 @@ class SmartChat:
 
             # 推荐下载
             recommended = identified.get('recommended')
+            self.identified_files = identified
+
             if recommended:
                 print("\n" + "=" * 80)
                 print("🎯 Recommended download:")
@@ -433,44 +512,73 @@ class SmartChat:
                     print(f"  File: {recommended}")
                     print(f"  URL: {ftp_result['ftp_url']}{recommended}")
 
-                # 询问是否下载
+                # 询问是否下载 - Change state instead of input()
                 print("\n" + "=" * 80)
-                response = input("Download this file? (yes/no): ").strip().lower()
-
-                if response in ['yes', 'y', 'YES']:
-                    print("\n📥 Starting download...")
-                    output_dir = './expression_atlas_data'
-
-                    downloaded = self.api.download_experiment_data(
-                        experiment_id=experiment_id,
-                        output_dir=output_dir
-                    )
-
-                    if downloaded:
-                        print(f"\n✅ Download successful!")
-                        print(f"  Saved to: {output_dir}")
-                        for file_type, path in downloaded.items():
-                            print(f"    • {file_type}: {path}")
-
-                        # 提供后续分析建议
-                        self._show_analysis_guide(downloaded, parsed.get('keywords', []))
-                    else:
-                        print("\n⚠ Automatic download failed")
-                        self._show_manual_download_guide(experiment_id, ftp_result)
-                else:
-                    print("\nSkipping download")
-                    self._show_manual_download_guide(experiment_id, ftp_result)
+                print("💬 Would you like to download this data?")
+                print("   Type 'yes' to download")
+                print("   Type 'no' or 'skip' to see manual download guide")
+                print("   Type 'back' to select a different experiment")
+                self.state = 'CONFIRMING'
 
             elif found_expr_files:
                 print("\nFound expression data files, but cannot automatically determine the best choice")
                 self._show_manual_download_guide(experiment_id, ftp_result)
+                self._reset_state()
             else:
                 print("\nNo standard gene expression data files found")
                 self._show_manual_download_guide(experiment_id, ftp_result)
+                self._reset_state()
 
         else:
             print(f"  ✗ Cannot automatically browse FTP: {ftp_result.get('message')}")
             self._show_manual_download_guide(experiment_id, ftp_result)
+            self._reset_state()
+
+    def _handle_download_confirmation(self, user_input: str):
+        """Handle user's download confirmation"""
+        user_input = user_input.strip().lower()
+
+        if user_input in ['back', 'cancel']:
+            print("\n🔄 Going back to experiment selection...")
+            if self.current_recommendations:
+                self.state = 'SELECTING'
+                self._show_recommendations()
+            else:
+                self._reset_state()
+            return
+
+        if user_input in ['yes', 'y', 'download']:
+            print("\n📥 Starting download...")
+            output_dir = './expression_atlas_data'
+
+            downloaded = self.api.download_experiment_data(
+                experiment_id=self.selected_experiment,
+                output_dir=output_dir
+            )
+
+            if downloaded:
+                print(f"\n✅ Download successful!")
+                print(f"  Saved to: {output_dir}")
+                for file_type, path in downloaded.items():
+                    print(f"    • {file_type}: {path}")
+
+                # 提供后续分析建议
+                keywords = self.current_query.get('keywords', []) if self.current_query else []
+                self._show_analysis_guide(downloaded, keywords)
+            else:
+                print("\n⚠ Automatic download failed")
+                self._show_manual_download_guide(self.selected_experiment, self.ftp_result)
+
+            # Reset state after download
+            self._reset_state()
+
+        elif user_input in ['no', 'n', 'skip']:
+            print("\nSkipping download...")
+            self._show_manual_download_guide(self.selected_experiment, self.ftp_result)
+            self._reset_state()
+
+        else:
+            print("\n❌ Please type 'yes' to download, 'no' to skip, or 'back' to select different experiment")
 
     def _show_manual_download_guide(self, experiment_id: str, ftp_result: dict):
         """显示手动下载指南"""
