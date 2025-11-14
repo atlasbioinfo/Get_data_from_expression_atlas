@@ -118,6 +118,9 @@ class ExperimentVectorSearch:
                 cache_data = pickle.load(f)
                 self.embeddings = cache_data['embeddings']
                 print(f"Loaded {len(self.embeddings)} cached embeddings")
+
+                # Initialize TF-IDF for query encoding (fallback)
+                self._init_tfidf_for_queries()
                 return
 
         # Initialize model
@@ -143,6 +146,15 @@ class ExperimentVectorSearch:
             }, f)
         print(f"Cached embeddings to {cache_file}")
 
+    def _init_tfidf_for_queries(self):
+        """Initialize TF-IDF for query encoding (when loading from cache)."""
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        texts = [self._create_searchable_text(exp) for exp in self.experiments]
+
+        self.tfidf = TfidfVectorizer(max_features=1000, ngram_range=(1, 2))
+        self.tfidf.fit(texts)  # Only fit, don't transform (embeddings already loaded)
+
     def _build_tfidf_index(self):
         """Fallback: Build TF-IDF index if sentence transformers not available."""
         from sklearn.feature_extraction.text import TfidfVectorizer
@@ -153,6 +165,17 @@ class ExperimentVectorSearch:
         self.tfidf = TfidfVectorizer(max_features=1000, ngram_range=(1, 2))
         self.embeddings = self.tfidf.fit_transform(texts).toarray()
         print("TF-IDF index built")
+
+        # Cache the embeddings for faster loading next time
+        cache_file = self.cache_dir / "embeddings_cache.pkl"
+        cache_file.parent.mkdir(exist_ok=True, parents=True)
+        with open(cache_file, 'wb') as f:
+            pickle.dump({
+                'embeddings': self.embeddings,
+                'num_experiments': len(self.experiments),
+                'method': 'tfidf'
+            }, f)
+        print(f"Cached TF-IDF embeddings to {cache_file}")
 
     def search(
         self,
