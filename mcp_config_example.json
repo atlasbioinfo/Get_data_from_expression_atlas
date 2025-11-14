@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "expression-atlas": {
+      "command": "python",
+      "args": [
+        "/path/to/Get_data_from_expression_atlas/mcp_server.py"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -2,13 +2,29 @@
 
 A conversational Python tool for retrieving gene expression data from [EMBL-EBI Expression Atlas](https://www.ebi.ac.uk/gxa/home).
 
+## ⚡ NEW: MCP Server Available!
+
+This tool is now available as a **Model Context Protocol (MCP) server**, allowing Claude and other AI assistants to directly search, browse, and download Expression Atlas data.
+
+**Quick Start with MCP:**
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# See MCP_SETUP.md for configuration instructions
+```
+
+👉 **[Full MCP Setup Guide](MCP_SETUP.md)** - Configure for Claude Desktop or other MCP clients
+
 ## Features
 
+- 🤖 **MCP Server** - Direct integration with Claude and other AI assistants
 - 🔍 Interactive conversation-based interface to specify data requirements
 - 🧬 Support for both baseline and differential expression experiments
 - 🌍 Filter by species/organism
 - 📊 Download expression data in various formats (TSV, R objects)
 - 🔌 Access via FTP and web API
+- 🧠 Smart file identification - automatically detects gene expression data files
 
 ## What is Expression Atlas?
 
@@ -23,9 +39,30 @@ Expression Atlas is an open science resource providing information on gene and p
 pip install -r requirements.txt
 ```
 
-## Quick Start
+## Usage Methods
 
-### Method 1: Interactive Chat Interface (Recommended)
+### 🤖 Method 1: MCP Server (Recommended for AI Assistants)
+
+Use with Claude Desktop or any MCP-compatible client:
+
+1. **Configure Claude Desktop** (see [MCP_SETUP.md](MCP_SETUP.md) for details)
+2. **Ask Claude naturally:**
+   - "Find human brain expression experiments"
+   - "Download data for experiment E-MTAB-513"
+   - "What files are available for this experiment?"
+
+**MCP Tools Available:**
+- `search_experiments` - Search by species, type, keywords
+- `browse_experiment_ftp` - List all files in an experiment
+- `identify_expression_files` - Smart detection of expression data
+- `download_expression_data` - Download with automatic retry
+- `get_experiment_info` - Get experiment metadata
+
+👉 See [MCP_SETUP.md](MCP_SETUP.md) for complete setup instructions
+
+## Quick Start (CLI/Python)
+
+### 💻 Method 2: Interactive Chat Interface
 
 ```bash
 python chat_interface.py
@@ -36,7 +73,7 @@ The tool will guide you through:
 2. Or searching by species, experiment type, and keywords
 3. Getting direct links to download data from Expression Atlas
 
-### Method 2: Programmatic Access
+### 🐍 Method 3: Programmatic Access
 
 ```python
 from chat_interface import ExpressionAtlasChat
@@ -46,7 +83,7 @@ chat = ExpressionAtlasChat()
 chat.start()
 ```
 
-### Method 3: Direct Data Loading (if you have downloaded files)
+### 📁 Method 4: Direct Data Loading (if you have downloaded files)
 
 ```python
 from expression_atlas import ExpressionAtlasAPI
@@ -105,13 +142,17 @@ Compares gene expression between different:
 
 ```
 .
-├── expression_atlas.py      # Main module for data retrieval
-├── chat_interface.py         # Conversational interface
-├── requirements.txt          # Dependencies
-├── examples/                 # Usage examples
+├── mcp_server.py             # 🤖 MCP server for AI assistants
+├── expression_atlas.py       # Main module for data retrieval
+├── chat_interface.py         # Conversational CLI interface
+├── requirements.txt          # Dependencies (includes mcp)
+├── MCP_SETUP.md             # MCP server setup guide
+├── mcp_config_example.json  # Example MCP configuration
+├── examples/                # Usage examples
 │   ├── basic_usage.py       # Basic API usage
 │   ├── interactive_chat.py  # Chat interface demo
-│   └── advanced_query.py    # Query builder examples
+│   ├── advanced_query.py    # Query builder examples
+│   └── complete_workflow.py # End-to-end workflow
 ├── USAGE_GUIDE.md           # Detailed Chinese usage guide
 └── test_basic.py            # Basic functionality tests
 ```
