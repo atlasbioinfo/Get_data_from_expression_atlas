@@ -16,7 +16,10 @@ from dotenv import load_dotenv
 import anthropic
 import requests
 from bs4 import BeautifulSoup
+import pandas as pd
+from pathlib import Path
 from expression_atlas import ExpressionAtlasAPI
+from scraper import ExpressionAtlasExperimentsScraper
 
 # Load environment variables
 load_dotenv()
@@ -46,6 +49,8 @@ class SmartExpressionAtlasChat:
 
         self.claude = anthropic.Anthropic(api_key=self.api_key)
         self.atlas_api = ExpressionAtlasAPI()
+        self.scraper = ExpressionAtlasExperimentsScraper()
+        self.experiments_df = None  # Will be loaded on first search
         self.conversation_history = []
         self.extracted_info = {
             'species': None,
@@ -53,6 +58,9 @@ class SmartExpressionAtlasChat:
             'keywords': [],
             'experiment_id': None
         }
+
+        # Try to load cached experiments
+        self._load_experiments_cache()
 
     def start(self):
         """Start the intelligent conversation."""
@@ -201,6 +209,39 @@ Format your response as JSON with two fields:
             self.extracted_info['experiment_id'] is not None
         )
 
+    def _load_experiments_cache(self):
+        """Load cached experiments data or download if not available."""
+        cache_file = Path("./atlas_cache/baseline_experiments.csv")
+
+        if cache_file.exists():
+            print("Loading cached experiments...")
+            try:
+                self.experiments_df = self.scraper.load_cached_experiments()
+                if not self.experiments_df.empty:
+                    print(f"✓ Loaded {len(self.experiments_df)} experiments from cache")
+                    return
+            except Exception as e:
+                print(f"⚠ Error loading cache: {e}")
+
+        # Cache doesn't exist, download it
+        print("Downloading experiments list (first time setup)...")
+        print("This may take a minute...\n")
+        try:
+            results = self.scraper.download_all_experiments()
+            if results:
+                # Combine baseline and differential
+                dfs = []
+                for exp_type, df in results.items():
+                    if not df.empty:
+                        dfs.append(df)
+                if dfs:
+                    self.experiments_df = pd.concat(dfs, ignore_index=True)
+                    print(f"\n✓ Downloaded {len(self.experiments_df)} experiments")
+        except Exception as e:
+            print(f"⚠ Could not download experiments: {e}")
+            print("Will use manual experiment list")
+            self.experiments_df = pd.DataFrame()
+
     def _confirm_search(self) -> bool:
         """Ask user to confirm before searching."""
         print("\n" + "=" * 70)
@@ -267,45 +308,81 @@ Format your response as JSON with two fields:
             print(f"Please visit: {exp_url}")
 
     def _search_experiments(self):
-        """Search for experiments based on extracted information."""
+        """Search for experiments based on extracted information using local cache."""
         species = self.extracted_info['species']
         exp_type = self.extracted_info['experiment_type']
         keywords = ' '.join(self.extracted_info['keywords']) if self.extracted_info['keywords'] else None
 
-        print(f"\nSearching for:")
+        print(f"\nSearching local database for:")
         print(f"  Species: {species}")
         print(f"  Type: {exp_type or 'Any'}")
         print(f"  Keywords: {keywords or 'None'}")
 
-        # Construct search URL
-        base_url = "https://www.ebi.ac.uk/gxa/experiments"
+        # Search in cached data
+        if self.experiments_df is None or self.experiments_df.empty:
+            print("\n⚠ No experiments database available")
+            self._suggest_popular_experiments()
+            return
+
+        results_df = self.experiments_df.copy()
+
+        # Filter by experiment type
         if exp_type:
-            base_url = f"https://www.ebi.ac.uk/gxa/{exp_type}/experiments"
+            results_df = results_df[results_df['type'] == exp_type]
 
-        print(f"\n🌐 Browse experiments at: {base_url}")
+        # Filter by species
+        if species:
+            results_df = results_df[
+                results_df['species'].str.contains(species, case=False, na=False)
+            ]
 
-        # Try to fetch and parse experiments list
-        try:
-            params = {}
-            if species:
-                params['species'] = species
+        # Filter by keywords
+        if keywords:
+            keyword_mask = (
+                results_df['description'].str.contains(keywords, case=False, na=False) |
+                results_df['factors'].str.contains(keywords, case=False, na=False)
+            )
+            results_df = results_df[keyword_mask]
+
+        # Display results
+        if len(results_df) == 0:
+            print(f"\n⚠ No experiments found matching your criteria.")
+            print("\nTrying broader search...")
+
+            # Try again without keywords
             if keywords:
-                params['keyword'] = keywords
+                results_df = self.experiments_df.copy()
+                if exp_type:
+                    results_df = results_df[results_df['type'] == exp_type]
+                if species:
+                    results_df = results_df[
+                        results_df['species'].str.contains(species, case=False, na=False)
+                    ]
 
-            response = requests.get(base_url, params=params, timeout=10)
-            if response.status_code == 200:
-                # For now, just provide the URL
-                # Actual parsing would require more detailed HTML analysis
-                full_url = response.url
-                print(f"\nSearch URL: {full_url}")
-                print(f"\nPlease visit this URL to browse available experiments.")
-                print(f"Look for experiments matching your criteria.")
+        if len(results_df) > 0:
+            print(f"\n✓ Found {len(results_df)} matching experiment(s):\n")
+            print("=" * 70)
 
-                # Suggest popular experiments for the species
-                self._suggest_popular_experiments()
+            # Show top 10 results
+            for idx, row in results_df.head(10).iterrows():
+                print(f"\n📊 {row['accession']}")
+                print(f"   Species: {row['species']}")
+                print(f"   Type: {row['type']}")
+                print(f"   Description: {row['description'][:100]}...")
+                if row['factors']:
+                    print(f"   Factors: {row['factors']}")
+                print(f"   🔗 {self.atlas_api.BASE_URL}experiments/{row['accession']}")
 
-        except Exception as e:
-            print(f"\n⚠ Could not perform automatic search: {e}")
+            if len(results_df) > 10:
+                print(f"\n... and {len(results_df) - 10} more experiments")
+
+            # Offer to show download instructions
+            print("\n" + "=" * 70)
+            choice = input("\nEnter experiment ID to see download instructions (or press Enter to skip): ").strip()
+            if choice:
+                self._show_download_info(choice)
+        else:
+            print("\n⚠ No experiments found.")
             self._suggest_popular_experiments()
 
     def _suggest_popular_experiments(self):
