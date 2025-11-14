@@ -10,6 +10,7 @@ import re
 import json
 from typing import Dict, List, Optional, Tuple
 from expression_atlas import ExpressionAtlasAPI
+from vector_search import ExperimentVectorSearch
 
 
 # 物种名称映射（中英文）
@@ -84,6 +85,9 @@ class SmartChatParser:
 
     def __init__(self):
         self.api = ExpressionAtlasAPI()
+        # Initialize vector search (lazy loading)
+        self.vector_search = None
+        self._init_vector_search()
 
     def parse_user_input(self, user_input: str) -> Dict:
         """
@@ -139,11 +143,39 @@ class SmartChatParser:
 
         return result
 
+    def _init_vector_search(self):
+        """Initialize vector search system."""
+        try:
+            self.vector_search = ExperimentVectorSearch()
+            print("🔍 正在初始化实验数据库...")
+            self.vector_search.build_index()
+            print(f"✅ 已加载 {len(self.vector_search.experiments)} 个实验")
+        except Exception as e:
+            print(f"⚠ Vector search初始化失败: {e}")
+            print("  使用fallback推荐系统")
+            self.vector_search = None
+
     def recommend_experiment(self, parsed: Dict) -> Optional[str]:
-        """根据解析结果推荐实验ID"""
+        """根据解析结果推荐实验ID（使用vector search）"""
         species = parsed.get('species')
+        keywords = parsed.get('keywords', [])
         exp_type = parsed.get('experiment_type', 'baseline')
 
+        # Try vector search first
+        if self.vector_search:
+            try:
+                results = self.vector_search.search_by_keywords(
+                    species=species,
+                    keywords=keywords,
+                    experiment_type=exp_type,
+                    top_k=1
+                )
+                if results:
+                    return results[0]['accession']
+            except Exception as e:
+                print(f"⚠ Vector search失败: {e}")
+
+        # Fallback to hardcoded experiments
         if species and species in KNOWN_EXPERIMENTS:
             if exp_type in KNOWN_EXPERIMENTS[species]:
                 return KNOWN_EXPERIMENTS[species][exp_type]
@@ -154,6 +186,26 @@ class SmartChatParser:
             return popular[0]
 
         return None
+
+    def get_top_experiments(self, parsed: Dict, top_k: int = 3) -> List[Dict]:
+        """获取top-k个最佳匹配的实验"""
+        species = parsed.get('species')
+        keywords = parsed.get('keywords', [])
+        exp_type = parsed.get('experiment_type', 'baseline')
+
+        if self.vector_search:
+            try:
+                results = self.vector_search.search_by_keywords(
+                    species=species,
+                    keywords=keywords,
+                    experiment_type=exp_type,
+                    top_k=top_k
+                )
+                return results
+            except Exception as e:
+                print(f"⚠ Vector search失败: {e}")
+
+        return []
 
 
 class SmartChat:
@@ -299,9 +351,31 @@ class SmartChat:
         # 确定实验ID
         experiment_id = parsed.get('experiment_id')
         if not experiment_id:
-            experiment_id = self.parser.recommend_experiment(parsed)
-            if experiment_id:
-                print(f"\n✨ 推荐实验: {experiment_id}")
+            # 获取top-3匹配的实验
+            top_experiments = self.parser.get_top_experiments(parsed, top_k=3)
+
+            if top_experiments:
+                print(f"\n🎯 找到 {len(top_experiments)} 个匹配的实验:")
+                print("=" * 80)
+                for exp in top_experiments:
+                    print(f"\n  {exp['rank']}. {exp['accession']} (匹配度: {exp['similarity_score']:.2%})")
+                    print(f"     物种: {exp['species']}")
+                    desc = exp['description'][:100]
+                    if len(exp['description']) > 100:
+                        desc += "..."
+                    print(f"     描述: {desc}")
+
+                print("\n" + "=" * 80)
+
+                # 默认使用第一个（最佳匹配）
+                experiment_id = top_experiments[0]['accession']
+                print(f"\n✨ 自动选择最佳匹配: {experiment_id}")
+                print(f"   (如需其他实验，请重新运行并指定实验ID)")
+            else:
+                # Fallback to single recommendation
+                experiment_id = self.parser.recommend_experiment(parsed)
+                if experiment_id:
+                    print(f"\n✨ 推荐实验: {experiment_id}")
 
         if not experiment_id:
             print("\n❌ 抱歉，无法找到合适的实验")
