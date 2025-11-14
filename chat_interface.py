@@ -281,7 +281,7 @@ class ExpressionAtlasChat:
             keyword=self.user_requirements['keyword']
         )
 
-        if results:
+        if results and isinstance(results, list) and len(results) > 0:
             print(f"Found {len(results)} matching experiments.\n")
             # Display first few results
             for i, exp in enumerate(results[:5], 1):
