@@ -75,7 +75,7 @@ KNOWN_EXPERIMENTS = {
         'baseline': 'E-MTAB-5214',  # Mouse tissues
     },
     'arabidopsis thaliana': {
-        'baseline': 'E-MTAB-3358',  # Arabidopsis tissues
+        'baseline': 'E-CURD-1',  # Arabidopsis tissues (whole organism, floral bud, rosette)
     },
 }
 

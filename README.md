@@ -224,7 +224,7 @@ The tool includes pre-configured popular experiment IDs:
 **Baseline Experiments:**
 - `E-MTAB-513` - Human tissues (Illumina Body Map)
 - `E-MTAB-5214` - Mouse tissues
-- `E-MTAB-3358` - Arabidopsis tissues
+- `E-CURD-1` - Arabidopsis tissues (whole organism, floral bud, rosette)
 
 **Differential Experiments:**
 - `E-GEOD-21860` - Cancer vs normal tissues

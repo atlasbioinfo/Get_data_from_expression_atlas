@@ -40,7 +40,7 @@ print("Example 2: Direct download with query builder")
 print("=" * 70)
 
 query2 = ExpressionAtlasQuery()
-query2.set_experiment_id("E-MTAB-3358")  # Arabidopsis tissues
+query2.set_experiment_id("E-CURD-1")  # Arabidopsis tissues (whole organism, floral bud, rosette)
 
 print(f"\nDownloading experiment: {query2.experiment_id}")
 
@@ -61,7 +61,7 @@ print("=" * 70)
 species_experiments = {
     "human": "E-MTAB-513",
     "mouse": "E-MTAB-5214",
-    "arabidopsis": "E-MTAB-3358"
+    "arabidopsis": "E-CURD-1"
 }
 
 for species, exp_id in species_experiments.items():

@@ -73,7 +73,7 @@ from expression_atlas import ExpressionAtlasAPI
 api = ExpressionAtlasAPI()
 
 # 拟南芥组织表达数据
-experiment_id = "E-MTAB-3358"
+experiment_id = "E-CURD-1"
 
 # 下载数据
 files = api.download_experiment_data(
@@ -91,7 +91,7 @@ print(f"下载的文件: {files}")
 由于 Expression Atlas 对自动访问有限制，**手动下载是最可靠的方法**：
 
 1. **访问实验页面：**
-   - 拟南芥：https://www.ebi.ac.uk/gxa/experiments/E-MTAB-3358
+   - 拟南芥：https://www.ebi.ac.uk/gxa/experiments/E-CURD-1
    - 人类组织：https://www.ebi.ac.uk/gxa/experiments/E-MTAB-513
    - 小鼠组织：https://www.ebi.ac.uk/gxa/experiments/E-MTAB-5214
 
@@ -107,7 +107,7 @@ print(f"下载的文件: {files}")
    from expression_atlas import ExpressionAtlasAPI
 
    api = ExpressionAtlasAPI()
-   df = api.load_expression_data('./downloads/E-MTAB-3358-tpms.tsv')
+   df = api.load_expression_data('./downloads/E-CURD-1-tpms.tsv')
 
    # 查看数据
    print(df.head())
@@ -122,8 +122,8 @@ print(f"下载的文件: {files}")
 ## 📊 常见实验ID
 
 ### 拟南芥 (Arabidopsis)
-- **E-MTAB-3358** - 多组织表达数据（可能包含 seedling）
-- 实验页面：https://www.ebi.ac.uk/gxa/experiments/E-MTAB-3358
+- **E-CURD-1** - 多组织表达数据（whole organism, floral bud, rosette）
+- 实验页面：https://www.ebi.ac.uk/gxa/experiments/E-CURD-1
 
 ### 人类 (Human)
 - **E-MTAB-513** - Human Body Map（多组织）
@@ -170,13 +170,13 @@ A: 下载后检查：
 
 ```bash
 # 步骤1: 访问实验页面
-# https://www.ebi.ac.uk/gxa/experiments/E-MTAB-3358
+# https://www.ebi.ac.uk/gxa/experiments/E-CURD-1
 
 # 步骤2: 查看实验描述和样本信息
 
 # 步骤3: 下载文件
-# - E-MTAB-3358-tpms.tsv (表达数据)
-# - E-MTAB-3358.condensed-sdrf.tsv (样本信息)
+# - E-CURD-1-tpms.tsv (表达数据)
+# - E-CURD-1.condensed-sdrf.tsv (样本信息)
 
 # 步骤4: 分析数据
 python
@@ -188,10 +188,10 @@ from expression_atlas import ExpressionAtlasAPI
 
 # 加载表达数据
 api = ExpressionAtlasAPI()
-expr_df = api.load_expression_data('./E-MTAB-3358-tpms.tsv')
+expr_df = api.load_expression_data('./E-CURD-1-tpms.tsv')
 
 # 加载样本信息
-sample_df = pd.read_csv('./E-MTAB-3358.condensed-sdrf.tsv', sep='\t')
+sample_df = pd.read_csv('./E-CURD-1.condensed-sdrf.tsv', sep='\t')
 
 # 查看样本类型
 print(sample_df.columns)

@@ -166,10 +166,10 @@ def main():
     print("\n步骤 2: 推荐的拟南芥实验")
     print("-" * 80)
 
-    # E-MTAB-3358 是拟南芥组织的经典数据集
-    recommended_exp = "E-MTAB-3358"
+    # E-CURD-1 是拟南芥组织的经典数据集
+    recommended_exp = "E-CURD-1"
     print(f"✅ 推荐实验: {recommended_exp}")
-    print(f"描述: Arabidopsis thaliana baseline expression in various tissues")
+    print(f"描述: Arabidopsis thaliana baseline expression (whole organism, floral bud, rosette)")
     print(f"实验页面: https://www.ebi.ac.uk/gxa/experiments/{recommended_exp}")
 
     # 步骤3: 获取实验详情
@@ -262,7 +262,7 @@ def main():
         print("\n" + "=" * 80)
         print("🌱 关于 Seedling (幼苗) 数据")
         print("=" * 80)
-        print("E-MTAB-3358 包含多个拟南芥组织的表达数据，可能包括:")
+        print("E-CURD-1 包含多个拟南芥组织的表达数据，可能包括:")
         print("  - Seedling (幼苗)")
         print("  - Root (根)")
         print("  - Leaf (叶)")

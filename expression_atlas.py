@@ -274,7 +274,7 @@ class ExpressionAtlasAPI:
             "baseline": [
                 "E-MTAB-513",   # Human tissues
                 "E-MTAB-5214",  # Mouse tissues
-                "E-MTAB-3358",  # Arabidopsis tissues
+                "E-CURD-1",     # Arabidopsis tissues
             ],
             "differential": [
                 "E-GEOD-21860",  # Cancer vs normal
